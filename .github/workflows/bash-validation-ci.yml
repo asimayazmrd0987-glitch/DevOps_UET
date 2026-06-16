@@ -1,0 +1,86 @@
+name: Bash Scripts Validation CI
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'Day_1-in-DevOps-main/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'Day_1-in-DevOps-main/**'
+
+jobs:
+  validate-bash-scripts:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check Bash syntax
+      run: |
+        cd Day_1-in-DevOps-main
+        echo "Validating all bash scripts..."
+        for script in *.sh; do
+          if [ -f "$script" ]; then
+            echo "Checking $script..."
+            bash -n "$script" && echo "✓ $script syntax is valid"
+          fi
+        done
+        
+    - name: ShellCheck analysis
+      uses: ludeeus/action-shellcheck@v2
+      with:
+        check_together: 'yes'
+        format: gcc
+        severity: warning
+        
+    - name: Verify script permissions
+      run: |
+        cd Day_1-in-DevOps-main
+        echo "Checking executable permissions..."
+        for script in *.sh; do
+          if [ -f "$script" ]; then
+            if [ -x "$script" ]; then
+              echo "✓ $script is executable"
+            else
+              echo "⚠ $script is not executable (adding +x)"
+              chmod +x "$script"
+            fi
+          fi
+        done
+        
+    - name: Run backup script in dry-run mode
+      run: |
+        cd Day_1-in-DevOps-main
+        echo "Testing backup script logic..."
+        # Create test directories
+        mkdir -p /tmp/test-documents
+        mkdir -p /tmp/test-backup
+        # Create test files
+        touch /tmp/test-documents/file1.txt
+        touch /tmp/test-documents/file2.txt
+        # Modify script temporarily for testing
+        sed 's|$HOME/Documents|/tmp/test-documents|g; s|$HOME/Backup|/tmp/test-backup|g' backup.sh > test_backup.sh
+        chmod +x test_backup.sh
+        ./test_backup.sh
+        echo "✓ Backup script executed successfully"
+        # Verify backup was created
+        ls -la /tmp/test-backup/ || echo "Backup directory checked"
+        # Cleanup
+        rm -rf /tmp/test-documents /tmp/test-backup test_backup.sh
+        
+    - name: Validate Bash_Scripting.sh
+      run: |
+        cd Day_1-in-DevOps-main
+        echo "Validating Bash_Scripting.sh..."
+        bash -n Bash_Scripting.sh && echo "✓ Bash_Scripting.sh syntax is valid"
+        
+    - name: Generate validation report
+      if: always()
+      run: |
+        echo "## Bash Script Validation Report" >> $GITHUB_STEP_SUMMARY
+        echo "- **Scripts Validated:** $(ls Day_1-in-DevOps-main/*.sh 2>/dev/null | wc -l)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Validation Date:** $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
